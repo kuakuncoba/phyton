@@ -5,7 +5,7 @@ import streamlit as st
 # PENGATURAN API KEY DAN MODEL
 # ===============================
 
-API_KEY = st.secrets["API_KEY"]  # API key sebaiknya disimpan di Streamlit Secrets
+API_KEY = st.secrets["AIzaSyC77hvhU75Z_iKzn-dV7GmnhiUTm7EpuZw"]  # API key sebaiknya disimpan di Streamlit Secrets
 MODEL_NAME = 'gemini-1.5-flash'
 
 # ===============================
