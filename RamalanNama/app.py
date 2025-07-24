@@ -1,17 +1,34 @@
-import google.generativeai as genai
 import streamlit as st
+import google.generativeai as genai
+import os
 
-# ===============================
-# PENGATURAN API KEY DAN MODEL
-# ===============================
+# =====================================================================
+# SETUP API KEY via environment variable (lebih aman untuk GitHub!)
+# =====================================================================
+API_KEY = os.getenv("GEMINI_API_KEY")
 
-API_KEY = st.secrets["AIzaSyC77hvhU75Z_iKzn-dV7GmnhiUTm7EpuZw"]  # API key sebaiknya disimpan di Streamlit Secrets
+if not API_KEY:
+    st.error("API Key belum disetel. Harap tambahkan environment variable 'GEMINI_API_KEY'.")
+    st.stop()
+
+# Nama model Gemini
 MODEL_NAME = 'gemini-1.5-flash'
 
-# ===============================
-# KONTEKS AWAL CHATBOT
-# ===============================
+# Konfigurasi API
+try:
+    genai.configure(api_key=API_KEY)
+    model = genai.GenerativeModel(
+        MODEL_NAME,
+        generation_config=genai.types.GenerationConfig(
+            temperature=0.4,
+            max_output_tokens=500
+        )
+    )
+except Exception as e:
+    st.error(f"Terjadi kesalahan saat mengonfigurasi model: {e}")
+    st.stop()
 
+# Konteks awal chatbot
 INITIAL_CHATBOT_CONTEXT = [
     {
         "role": "user",
@@ -23,52 +40,37 @@ INITIAL_CHATBOT_CONTEXT = [
     }
 ]
 
-# ===============================
-# INISIALISASI MODEL
-# ===============================
-
-try:
-    genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel(
-        MODEL_NAME,
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.4,
-            max_output_tokens=500
-        )
-    )
-    chat = model.start_chat(history=INITIAL_CHATBOT_CONTEXT)
-except Exception as e:
-    st.error(f"Kesalahan konfigurasi: {e}")
-    st.stop()
-
-# ===============================
-# STREAMLIT UI
-# ===============================
-
-st.set_page_config(page_title="Chatbot Nama", page_icon="🔮")
-st.title("🔮 Chatbot Peramal Nama")
-st.markdown("Masukkan nama dan biarkan aku mengungkap artinya serta kepribadianmu! 😊")
-
-# Simpan sesi chat di state
-if "messages" not in st.session_state:
+# Inisialisasi chat hanya sekali (menghindari reset)
+if "chat" not in st.session_state:
+    st.session_state.chat = model.start_chat(history=INITIAL_CHATBOT_CONTEXT)
     st.session_state.messages = []
 
-# Form input pengguna
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Masukkan Nama:")
-    submitted = st.form_submit_button("Kirim")
+# UI Streamlit
+st.title("🔮 Penerjemah & Peramal Nama AI")
+st.markdown("_Powered by Gemini API_")
 
-if submitted and user_input:
-    st.session_state.messages.append(("Anda", user_input))
+# Riwayat Chat
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    try:
-        response = chat.send_message(user_input)
-        chatbot_reply = response.text or "Maaf, saya tidak bisa memberikan balasan."
-    except Exception as e:
-        chatbot_reply = f"Terjadi kesalahan: {e}"
+# Input Pengguna
+prompt = st.chat_input("Ketik nama yang ingin diterjemahkan...")
 
-    st.session_state.messages.append(("Chatbot", chatbot_reply))
+if prompt:
+    # Tampilkan input user
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-# Tampilkan riwayat chat
-for sender, message in st.session_state.messages:
-    st.markdown(f"**{sender}:** {message}")
+    # Tanggapan chatbot
+    with st.chat_message("assistant"):
+        with st.spinner("Meramal nama..."):
+            try:
+                response = st.session_state.chat.send_message(prompt)
+                result = response.text
+            except Exception as e:
+                result = f"⚠️ Terjadi kesalahan: {e}"
+
+        st.markdown(result)
+        st.session_state.messages.append({"role": "assistant", "content": result})
